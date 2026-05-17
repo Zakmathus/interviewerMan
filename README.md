@@ -25,10 +25,14 @@ export OPENAI_API_KEY="tu_api_key"
 python app.py
 ```
 
-Opcionalmente puedes cambiar el modelo de respuesta con una variable de entorno:
+Opcionalmente puedes cambiar el modelo de respuesta o la configuración local de Faster-Whisper con variables de entorno:
 
 ```bash
 export OPENAI_CHAT_MODEL="gpt-4.1-mini"
+export WHISPER_MODEL="small.en"
+export WHISPER_COMPUTE_TYPE="int8"
+export WHISPER_CPU_THREADS="4"
+export WHISPER_BEAM_SIZE="3"
 ```
 
 ## Uso

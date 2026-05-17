@@ -39,6 +39,17 @@ AUDIO_SAMPLE_RATE = 16_000
 AUDIO_CHANNELS = 1
 AUDIO_CHUNK_SECONDS = 3
 
+# small.en is a strong accuracy/speed balance for English interviews on
+# Apple Silicon. int8 CPU inference keeps it responsive on an M1 with 16 GB RAM.
+WHISPER_MODEL_NAME = os.getenv("WHISPER_MODEL", "small.en")
+WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
+WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
+WHISPER_CPU_THREADS = int(os.getenv("WHISPER_CPU_THREADS", "4"))
+WHISPER_BEAM_SIZE = int(os.getenv("WHISPER_BEAM_SIZE", "3"))
+WHISPER_VAD_PARAMETERS = {
+    "min_silence_duration_ms": 400,
+}
+
 MAX_IMAGES_PER_REQUEST = 3
 
 CAPTURES_DIR = Path("captures")
@@ -71,8 +82,13 @@ class AudioTranscriber(threading.Thread):
         self.stop_event = stop_event
         self.audio_queue: queue.Queue[np.ndarray] = queue.Queue()
 
-        # Faster Whisper local model
-        self.model = WhisperModel("tiny", device="cpu", compute_type="int8")
+        self.model = WhisperModel(
+            WHISPER_MODEL_NAME,
+            device=WHISPER_DEVICE,
+            compute_type=WHISPER_COMPUTE_TYPE,
+            cpu_threads=WHISPER_CPU_THREADS,
+            num_workers=1,
+        )
 
         # Stores all audio from the current session
         self.session_audio_frames: list[np.ndarray] = []
@@ -134,7 +150,10 @@ class AudioTranscriber(threading.Thread):
             segments, _info = self.model.transcribe(
                 str(wav_path),
                 language="en",
-                beam_size=5,
+                beam_size=WHISPER_BEAM_SIZE,
+                condition_on_previous_text=False,
+                vad_filter=True,
+                vad_parameters=WHISPER_VAD_PARAMETERS,
             )
 
             text = " ".join(segment.text.strip() for segment in segments).strip()
