@@ -38,7 +38,7 @@ export WHISPER_BEAM_SIZE="3"
 ## Uso
 
 1. Inicia la app con `python app.py`.
-2. La cámara se muestra en vivo y el micrófono se transcribe localmente por chunks de 3 segundos.
+2. La cámara se muestra en vivo y el micrófono se transcribe localmente por chunks de 2 segundos con 0.75 segundos de solape.
 3. El transcript acumulado aparece en el panel derecho.
 4. Presiona `Space` para pedir una respuesta de IA usando el transcript y hasta las últimas 3 fotos.
 5. Presiona `S` o el botón **Tomar foto (S)** para capturar una imagen.

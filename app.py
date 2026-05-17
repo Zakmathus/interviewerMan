@@ -37,7 +37,8 @@ APP_TITLE = "InterviewerMan - Asistente multimodal"
 
 AUDIO_SAMPLE_RATE = 16_000
 AUDIO_CHANNELS = 1
-AUDIO_CHUNK_SECONDS = 3
+AUDIO_CHUNK_SECONDS = 2
+AUDIO_OVERLAP_SECONDS = 0.75
 
 # small.en is a strong accuracy/speed balance for English interviews on
 # Apple Silicon. int8 CPU inference keeps it responsive on an M1 with 16 GB RAM.
@@ -47,7 +48,9 @@ WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
 WHISPER_CPU_THREADS = int(os.getenv("WHISPER_CPU_THREADS", "4"))
 WHISPER_BEAM_SIZE = int(os.getenv("WHISPER_BEAM_SIZE", "3"))
 WHISPER_VAD_PARAMETERS = {
-    "min_silence_duration_ms": 400,
+    "threshold": 0.45,
+    "min_silence_duration_ms": 500,
+    "speech_pad_ms": 250,
 }
 
 MAX_IMAGES_PER_REQUEST = 3
@@ -92,6 +95,7 @@ class AudioTranscriber(threading.Thread):
 
         # Stores all audio from the current session
         self.session_audio_frames: list[np.ndarray] = []
+        self.previous_transcript_context = ""
 
     def run(self) -> None:
         self.on_status("Micrófono activo")
@@ -120,6 +124,7 @@ class AudioTranscriber(threading.Thread):
     def _process_audio_chunks(self) -> None:
         frames: list[np.ndarray] = []
         frames_needed = AUDIO_SAMPLE_RATE * AUDIO_CHUNK_SECONDS
+        overlap_frames = int(AUDIO_SAMPLE_RATE * AUDIO_OVERLAP_SECONDS)
         collected_frames = 0
 
         while not self.stop_event.is_set():
@@ -136,8 +141,9 @@ class AudioTranscriber(threading.Thread):
 
             if collected_frames >= frames_needed:
                 chunk = np.concatenate(frames, axis=0)
-                frames.clear()
-                collected_frames = 0
+                overlap = chunk[-overlap_frames:].copy()
+                frames = [overlap]
+                collected_frames = len(overlap)
                 self._transcribe_chunk(chunk)
 
     def _transcribe_chunk(self, audio: np.ndarray) -> None:
@@ -151,7 +157,8 @@ class AudioTranscriber(threading.Thread):
                 str(wav_path),
                 language="en",
                 beam_size=WHISPER_BEAM_SIZE,
-                condition_on_previous_text=False,
+                condition_on_previous_text=True,
+                initial_prompt=self.previous_transcript_context or None,
                 vad_filter=True,
                 vad_parameters=WHISPER_VAD_PARAMETERS,
             )
@@ -159,6 +166,7 @@ class AudioTranscriber(threading.Thread):
             text = " ".join(segment.text.strip() for segment in segments).strip()
 
             if text:
+                self.previous_transcript_context = text[-500:]
                 self.on_transcript(text)
 
         except Exception as exc:
